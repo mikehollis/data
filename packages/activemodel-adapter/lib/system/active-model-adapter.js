@@ -10,47 +10,60 @@ var decamelize = Ember.String.decamelize;
 var underscore = Ember.String.underscore;
 
 /**
-  The ActiveModelAdapter is a subclass of the RESTAdapter designed to integrate
-  with a JSON API that uses an underscored naming convention instead of camelCasing.
-  It has been designed to work out of the box with the
+  The `DS.ActiveModelAdapter` is a subclass of the `DS.RESTAdapter` designed to integrate
+  with a JSON API that works with the
   [active\_model\_serializers](http://github.com/rails-api/active_model_serializers)
-  Ruby gem. This Adapter expects specific settings using ActiveModel::Serializers,
-  `embed :ids, embed_in_root: true` which sideloads the records.
+  Ruby gem. Therefore, when using this adapter, there are some differences with the default
+  types of keys that should be used (explained below).
 
-  This adapter extends the DS.RESTAdapter by making consistent use of the camelization,
-  decamelization and pluralization methods to normalize the serialized JSON into a
-  format that is compatible with a conventional Rails backend and Ember Data.
+  ## Rails Configuration
+
+  This Adapter expects specific settings using ActiveModel::Serializers,
+  `embed :ids, embed_in_root: true` which sideloads the records.
 
   ## JSON Structure
 
-  The ActiveModelAdapter expects the JSON returned from your server to follow
-  the REST adapter conventions substituting underscored keys for camelcased ones.
+  The ActiveModel Adapter expects the JSON returned from your server to follow the REST
+  Adapter's conventions with the following exceptions.
 
-  Unlike the DS.RESTAdapter, async relationship keys must be the singular form
-  of the relationship name, followed by "_id" for DS.belongsTo relationships,
-  or "_ids" for DS.hasMany relationships.
+  ### Object Root
+
+  The ActiveModel Adapter is almost the same as the REST Adapter for the
+  object root. The only difference is that the keys are underscored instead of camelCased.
 
   ### Conventional Names
 
-  Attribute names in your JSON payload should be the underscored versions of
-  the attributes in your Ember.js models.
+  While the `DS.RESTAdapter` uses camelCasing, the `DS.ActiveModelAdapter` using underscoring.
 
   For example, if you have a `Person` model:
 
-  ```js
-  App.FamousPerson = DS.Model.extend({
+  ````js
+  App.Person = DS.Model.extend({
     firstName: DS.attr('string'),
     lastName: DS.attr('string'),
     occupation: DS.attr('string')
   });
   ```
 
-  The JSON returned should look like this:
+  In the `DS.RESTAdapter`, the JSON should look like this:
 
-  ```js
+  ````js
   {
-    "famous_person": {
-      "id": 1,
+    "person": {
+      "id": 5,
+      "firstName": "Barack",
+      "lastName": "Obama",
+      "occupation": "President"
+    }
+  }
+  ```
+
+  Whereas in the `DS.ActiveModelAdapter`, the JSON should look like this:
+
+  ````js
+  {
+    "person": {
+      "id": 5,
       "first_name": "Barack",
       "last_name": "Obama",
       "occupation": "President"
@@ -58,38 +71,44 @@ var underscore = Ember.String.underscore;
   }
   ```
 
-  Let's imagine that `Occupation` is just another model:
+  ### Relational Keys
 
-  ```js
+  It's important to note that ActiveModel::Serializer expects relationships to be
+  serialized as ids only, and the key uses the `_id` extension. Therefore, if we
+  change the occupation to be a separate model and add a `familyMembers` relationship:
+
+  ````js
   App.Person = DS.Model.extend({
     firstName: DS.attr('string'),
     lastName: DS.attr('string'),
-    occupation: DS.belongsTo('occupation')
+    occupation: DS.belongsTo('occupation', {async: true}),
+    familyMembers: DS.hasMany('family-member', {async:true})
   });
 
   App.Occupation = DS.Model.extend({
     name: DS.attr('string'),
     salary: DS.attr('number'),
-    people: DS.hasMany('person')
+    people: DS.hasMany('person', {async: true})
   });
   ```
 
-  The JSON needed to avoid extra server calls, should look like this:
+  the resulting JSON payload for the `DS.ActiveModelAdapter` would need to be this:
 
-  ```js
+  ````js
   {
     "people": [{
-      "id": 1,
+      "id": 5,
       "first_name": "Barack",
       "last_name": "Obama",
       "occupation_id": 1
+      "family_member_ids": [1,2,3]
     }],
 
     "occupations": [{
       "id": 1,
       "name": "President",
-      "salary": 100000,
-      "person_ids": [1]
+      "salary": "400000",
+      "people_ids": [5]
     }]
   }
   ```
